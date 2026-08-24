@@ -22,7 +22,10 @@ function getTokenStorePath(): string {
   }
 }
 
-export const CLIENT_ID = "385c753e-f72b-45d2-94ca-568475184f6c";
+// Microsoft's own public client ID for "Microsoft Graph Command Line Tools"
+// (used by Connect-MgGraph). Device code flow needs no redirect URI, so this
+// avoids the app-registration/tenant requirement entirely.
+export const CLIENT_ID = "14d82eec-204b-4c2f-b7e8-296a70dab67e";
 
 export function getConfig(): AppConfig {
   const clientId = CLIENT_ID;
