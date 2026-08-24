@@ -10,15 +10,50 @@ import type { ToolDefinition } from "./tools/types.js";
  * Convert a JSON Schema property definition to a Zod schema.
  */
 function jsonPropertyToZod(prop: Record<string, any>): z.ZodTypeAny {
+  let schema: z.ZodTypeAny;
+
   switch (prop.type) {
     case "number":
-      return prop.description ? z.number().describe(prop.description) : z.number();
+      schema = z.number();
+      break;
     case "boolean":
-      return prop.description ? z.boolean().describe(prop.description) : z.boolean();
+      schema = z.boolean();
+      break;
+    case "array":
+      schema = z.array(prop.items ? jsonPropertyToZod(prop.items) : z.any());
+      break;
+    case "object":
+      schema = prop.properties
+        ? z.object(buildZodShapeFromProperties(prop.properties, prop.required || []))
+        : z.record(z.any());
+      break;
     case "string":
     default:
-      return prop.description ? z.string().describe(prop.description) : z.string();
+      schema = z.string();
   }
+
+  return prop.description ? schema.describe(prop.description) : schema;
+}
+
+/**
+ * Build a Zod raw shape from a plain JSON Schema `properties` object
+ * (used for both top-level tool inputs and nested object properties).
+ */
+function buildZodShapeFromProperties(
+  props: Record<string, any>,
+  required: string[],
+): Record<string, z.ZodTypeAny> {
+  const shape: Record<string, z.ZodTypeAny> = {};
+
+  for (const [key, prop] of Object.entries(props) as [string, Record<string, any>][]) {
+    let schema = jsonPropertyToZod(prop);
+    if (!required.includes(key)) {
+      schema = schema.optional();
+    }
+    shape[key] = schema;
+  }
+
+  return shape;
 }
 
 /**
@@ -32,18 +67,7 @@ function buildZodShape(
     return undefined;
   }
 
-  const required: string[] = tool.inputSchema.required || [];
-  const shape: Record<string, z.ZodTypeAny> = {};
-
-  for (const [key, prop] of Object.entries(props) as [string, Record<string, any>][]) {
-    let schema = jsonPropertyToZod(prop);
-    if (!required.includes(key)) {
-      schema = schema.optional();
-    }
-    shape[key] = schema;
-  }
-
-  return shape;
+  return buildZodShapeFromProperties(props, tool.inputSchema.required || []);
 }
 
 const server = new McpServer({
